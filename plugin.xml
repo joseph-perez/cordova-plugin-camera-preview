@@ -52,10 +52,22 @@
       </feature>
     </config-file>
 
+    <resource-file src="src/ios/GoogleService-Info.plist" />
+
+    <podspec>
+      <config>
+        <source url="https://github.com/CocoaPods/Specs.git"/>
+      </config>
+      <pods use-frameworks="false">
+        <pod name="FirebaseMLVision" spec="~> 0.19.0" />
+        <pod name="FirebaseMLVisionBarcodeModel" spec="~> 0.19.0" />
+      </pods>
+    </podspec>
+
     <header-file src="src/ios/CameraPreview.h" />
     <source-file src="src/ios/CameraPreview.m" />
 
-     <header-file src="src/ios/TemperatureAndTint.h" />
+    <header-file src="src/ios/TemperatureAndTint.h" />
     <source-file src="src/ios/TemperatureAndTint.m" />
 
     <header-file src="src/ios/CameraSessionManager.h" />
@@ -76,5 +88,5 @@
     <framework src="CoreVideo.framework" />
     <framework src="QuartzCore.framework"/>
   </platform>
-
+  <hook type="after_prepare" src="scripts/setupFirebaseCredentials.js" />
 </plugin>

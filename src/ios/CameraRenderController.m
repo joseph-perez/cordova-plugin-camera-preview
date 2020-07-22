@@ -2,16 +2,26 @@
 #import <CoreVideo/CVOpenGLESTextureCache.h>
 #import <GLKit/GLKit.h>
 #import <OpenGLES/ES2/glext.h>
+@import FirebaseMLVision;
 
 @implementation CameraRenderController
 @synthesize context = _context;
 @synthesize delegate;
 
+@property(nonatomic, strong) FIRVisionBarcodeDetector *barcodeDetector;
 
 - (CameraRenderController *)init {
   if (self = [super init]) {
     self.renderLock = [[NSLock alloc] init];
   }
+
+  // Initialize barcode detector.
+  FIRVisionBarcodeDetectorOptions *options =
+    [[FIRVisionBarcodeDetectorOptions alloc]
+     initWithFormats: [formats intValue]];
+  FIRVision *vision = [FIRVision vision];
+  self.barcodeDetector = [vision barcodeDetectorWithOptions:options];
+
   return self;
 }
 
