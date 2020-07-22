@@ -2,25 +2,42 @@
 #import <CoreVideo/CVOpenGLESTextureCache.h>
 #import <GLKit/GLKit.h>
 #import <OpenGLES/ES2/glext.h>
-@import FirebaseMLVision;
+
+@import MLKit;
+
+@interface CameraRenderController()
+@property(nonatomic, strong) FIRVisionBarcodeDetector *barcodeDetector;
+@end
 
 @implementation CameraRenderController
 @synthesize context = _context;
 @synthesize delegate;
-
-@property(nonatomic, strong) FIRVisionBarcodeDetector *barcodeDetector;
 
 - (CameraRenderController *)init {
   if (self = [super init]) {
     self.renderLock = [[NSLock alloc] init];
   }
 
+  //Parse Cordova settings.
+  NSNumber *formats = 0;
+  formats = _barcodeFormats;
+
   // Initialize barcode detector.
-  FIRVisionBarcodeDetectorOptions *options =
-    [[FIRVisionBarcodeDetectorOptions alloc]
-     initWithFormats: [formats intValue]];
-  FIRVision *vision = [FIRVision vision];
-  self.barcodeDetector = [vision barcodeDetectorWithOptions:options];
+  // FIRVisionBarcodeDetectorOptions *options = [[FIRVisionBarcodeDetectorOptions alloc] initWithFormats: [formats intValue]];
+  // FIRVision *vision = [FIRVision vision];
+  // self.barcodeDetector = [vision barcodeDetectorWithOptions:options];
+
+  // Define the options for a barcode detector.
+  // [START config_barcode]
+  MLKBarcodeFormat format = MLKBarcodeFormatAll;
+  MLKBarcodeScannerOptions *barcodeOptions =
+      [[MLKBarcodeScannerOptions alloc] initWithFormats:format];
+  // [END config_barcode]
+
+  // Create a barcode detector.
+  // [START init_barcode]
+  // MLKBarcodeScanner *barcodeScanner = [MLKBarcodeScanner barcodeScannerWithOptions:barcodeOptions];
+  // [END init_barcode]
 
   return self;
 }
