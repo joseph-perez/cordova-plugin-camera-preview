@@ -6,7 +6,7 @@
 @import MLKit;
 
 @interface CameraRenderController()
-@property(nonatomic, strong) FIRVisionBarcodeDetector *barcodeDetector;
+@property(nonatomic, strong) MLKBarcodeScanner *barcodeDetector;
 @end
 
 @implementation CameraRenderController
@@ -36,7 +36,7 @@
 
   // Create a barcode detector.
   // [START init_barcode]
-  // MLKBarcodeScanner *barcodeScanner = [MLKBarcodeScanner barcodeScannerWithOptions:barcodeOptions];
+  self.barcodeDetector = [MLKBarcodeScanner barcodeScannerWithOptions:barcodeOptions];
   // [END init_barcode]
 
   return self;
@@ -184,66 +184,109 @@
       });
 }
 
--(void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
-  if ([self.renderLock tryLock]) {
-    CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
-    CIImage *image = [CIImage imageWithCVPixelBuffer:pixelBuffer];
+- (UIImageOrientation)
+  imageOrientationFromDeviceOrientation:(UIDeviceOrientation)deviceOrientation
+                         cameraPosition:(AVCaptureDevicePosition)cameraPosition {
+  switch (deviceOrientation) {
+    case UIDeviceOrientationPortrait:
+      return cameraPosition == AVCaptureDevicePositionFront ? UIImageOrientationLeftMirrored
+                                                            : UIImageOrientationRight;
 
-
-    CGFloat scaleHeight = self.view.frame.size.height/image.extent.size.height;
-    CGFloat scaleWidth = self.view.frame.size.width/image.extent.size.width;
-
-    CGFloat scale, x, y;
-    if (scaleHeight < scaleWidth) {
-      scale = scaleWidth;
-      x = 0;
-      y = ((scale * image.extent.size.height) - self.view.frame.size.height ) / 2;
-    } else {
-      scale = scaleHeight;
-      x = ((scale * image.extent.size.width) - self.view.frame.size.width )/ 2;
-      y = 0;
-    }
-
-    // scale - translate
-    CGAffineTransform xscale = CGAffineTransformMakeScale(scale, scale);
-    CGAffineTransform xlate = CGAffineTransformMakeTranslation(-x, -y);
-    CGAffineTransform xform =  CGAffineTransformConcat(xscale, xlate);
-
-    CIFilter *centerFilter = [CIFilter filterWithName:@"CIAffineTransform"  keysAndValues:
-      kCIInputImageKey, image,
-      kCIInputTransformKey, [NSValue valueWithBytes:&xform objCType:@encode(CGAffineTransform)],
-      nil];
-
-    CIImage *transformedImage = [centerFilter outputImage];
-
-    // crop
-    CIFilter *cropFilter = [CIFilter filterWithName:@"CICrop"];
-    CIVector *cropRect = [CIVector vectorWithX:0 Y:0 Z:self.view.frame.size.width W:self.view.frame.size.height];
-    [cropFilter setValue:transformedImage forKey:kCIInputImageKey];
-    [cropFilter setValue:cropRect forKey:@"inputRectangle"];
-    CIImage *croppedImage = [cropFilter outputImage];
-
-    //fix front mirroring
-    if (self.sessionManager.defaultCamera == AVCaptureDevicePositionFront) {
-      CGAffineTransform matrix = CGAffineTransformTranslate(CGAffineTransformMakeScale(-1, 1), 0, croppedImage.extent.size.height);
-      croppedImage = [croppedImage imageByApplyingTransform:matrix];
-    }
-
-    self.latestFrame = croppedImage;
-
-    CGFloat pointScale;
-    if ([[UIScreen mainScreen] respondsToSelector:@selector(nativeScale)]) {
-      pointScale = [[UIScreen mainScreen] nativeScale];
-    } else {
-      pointScale = [[UIScreen mainScreen] scale];
-    }
-    CGRect dest = CGRectMake(0, 0, self.view.frame.size.width*pointScale, self.view.frame.size.height*pointScale);
-
-    [self.ciContext drawImage:croppedImage inRect:dest fromRect:[croppedImage extent]];
-    [self.context presentRenderbuffer:GL_RENDERBUFFER];
-    [(GLKView *)(self.view)display];
-    [self.renderLock unlock];
+    case UIDeviceOrientationLandscapeLeft:
+      return cameraPosition == AVCaptureDevicePositionFront ? UIImageOrientationDownMirrored
+                                                            : UIImageOrientationUp;
+    case UIDeviceOrientationPortraitUpsideDown:
+      return cameraPosition == AVCaptureDevicePositionFront ? UIImageOrientationRightMirrored
+                                                            : UIImageOrientationLeft;
+    case UIDeviceOrientationLandscapeRight:
+      return cameraPosition == AVCaptureDevicePositionFront ? UIImageOrientationUpMirrored
+                                                            : UIImageOrientationDown;
+    case UIDeviceOrientationUnknown:
+    case UIDeviceOrientationFaceUp:
+    case UIDeviceOrientationFaceDown:
+      return UIImageOrientationUp;
   }
+}
+
+-(void)captureOutput:(AVCaptureOutput *)captureOutput didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer fromConnection:(AVCaptureConnection *)connection {
+  AVCaptureDevicePosition cameraPosition = AVCaptureDevicePositionBack;
+
+   MLKVisionImage *image = [[MLKVisionImage alloc] initWithBuffer:sampleBuffer];
+  image.orientation = [self imageOrientationFromDeviceOrientation:UIDevice.currentDevice.orientation cameraPosition:cameraPosition];
+
+  [self.barcodeDetector processImage:image
+                   completion:^(NSArray<MLKBarcode *> *_Nullable barcodes,
+                               NSError *_Nullable error) {
+  if (error != nil) {
+    // Error handling
+    NSLog(@"ERROR IN SCANNING");
+    return;
+  }
+
+  if (barcodes.count > 0) {
+    // Recognized barcodes
+    NSLog(@"hey we are in success");
+  }
+}];
+  // if ([self.renderLock tryLock]) {
+  //   CVPixelBufferRef pixelBuffer = (CVPixelBufferRef)CMSampleBufferGetImageBuffer(sampleBuffer);
+  //   CIImage *image = [CIImage imageWithCVPixelBuffer:pixelBuffer];
+
+
+  //   CGFloat scaleHeight = self.view.frame.size.height/image.extent.size.height;
+  //   CGFloat scaleWidth = self.view.frame.size.width/image.extent.size.width;
+
+  //   CGFloat scale, x, y;
+  //   if (scaleHeight < scaleWidth) {
+  //     scale = scaleWidth;
+  //     x = 0;
+  //     y = ((scale * image.extent.size.height) - self.view.frame.size.height ) / 2;
+  //   } else {
+  //     scale = scaleHeight;
+  //     x = ((scale * image.extent.size.width) - self.view.frame.size.width )/ 2;
+  //     y = 0;
+  //   }
+
+  //   // scale - translate
+  //   CGAffineTransform xscale = CGAffineTransformMakeScale(scale, scale);
+  //   CGAffineTransform xlate = CGAffineTransformMakeTranslation(-x, -y);
+  //   CGAffineTransform xform =  CGAffineTransformConcat(xscale, xlate);
+
+  //   CIFilter *centerFilter = [CIFilter filterWithName:@"CIAffineTransform"  keysAndValues:
+  //     kCIInputImageKey, image,
+  //     kCIInputTransformKey, [NSValue valueWithBytes:&xform objCType:@encode(CGAffineTransform)],
+  //     nil];
+
+  //   CIImage *transformedImage = [centerFilter outputImage];
+
+  //   // crop
+  //   CIFilter *cropFilter = [CIFilter filterWithName:@"CICrop"];
+  //   CIVector *cropRect = [CIVector vectorWithX:0 Y:0 Z:self.view.frame.size.width W:self.view.frame.size.height];
+  //   [cropFilter setValue:transformedImage forKey:kCIInputImageKey];
+  //   [cropFilter setValue:cropRect forKey:@"inputRectangle"];
+  //   CIImage *croppedImage = [cropFilter outputImage];
+
+  //   //fix front mirroring
+  //   if (self.sessionManager.defaultCamera == AVCaptureDevicePositionFront) {
+  //     CGAffineTransform matrix = CGAffineTransformTranslate(CGAffineTransformMakeScale(-1, 1), 0, croppedImage.extent.size.height);
+  //     croppedImage = [croppedImage imageByApplyingTransform:matrix];
+  //   }
+
+  //   self.latestFrame = croppedImage;
+
+  //   CGFloat pointScale;
+  //   if ([[UIScreen mainScreen] respondsToSelector:@selector(nativeScale)]) {
+  //     pointScale = [[UIScreen mainScreen] nativeScale];
+  //   } else {
+  //     pointScale = [[UIScreen mainScreen] scale];
+  //   }
+  //   CGRect dest = CGRectMake(0, 0, self.view.frame.size.width*pointScale, self.view.frame.size.height*pointScale);
+
+  //   [self.ciContext drawImage:croppedImage inRect:dest fromRect:[croppedImage extent]];
+  //   [self.context presentRenderbuffer:GL_RENDERBUFFER];
+  //   [(GLKView *)(self.view)display];
+  //   [self.renderLock unlock];
+  // }
 }
 
 - (void)viewDidUnload {
